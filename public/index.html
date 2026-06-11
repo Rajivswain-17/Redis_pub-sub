@@ -209,22 +209,34 @@
         }
        })
 
-       new Array(CHECKBOX_COUNT).fill(null).forEach((_, index) => {
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.id = `checkbox${index}`;
+       window.addEventListener('load', async () => {
+        const response = await fetch('/checkboxes', {method: 'GET'});
+        const data = await response.json();
+        if(data && data.checkboxes) {
+            data.checkboxes.forEach((servervalue, index) => {
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `checkbox${index}`;
+                input.checked = servervalue;
 
+                input.addEventListener('change', event => {
+                    const checked = event.target.checked;
+                    console.log('checkbox changed', {index, checked});
+                    socket.emit('client:checkbox:change', {index, checked});
+                });
 
-        input.addEventListener('change', event => {
-            const checked = event.target.checked;   
-            console.log('checkbox changed', {index, checked});
-            socket.emit('client:checkbox:change', {index, checked});    
-        })
-
-
-        
-        container.appendChild(input);
+                container.appendChild(input);
+            });
+        }
        })
+
+        // here i create 100 checkboxes and add event listener to each checkbox and when any checkbox state is changed it will emit to server and server will emit to all clients that checkbox state is changed and all clients will update the state of that checkbox.
+
+
+       
+
+        // here i create 100 checkboxes and add event listener to each checkbox and when any checkbox state is changed it will emit to server and server will emit to all clients that checkbox state is changed and all clients will update the state of that checkbox.
+
     </script>
 </body>
 </html>
