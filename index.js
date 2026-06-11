@@ -2,7 +2,8 @@ import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { Server } from 'socket.io';
-import { log } from 'node:console';
+
+import {publisher, subscriber} from './redis-connection.js';
 
 
 // its means when my server start it will create 100 checkboxes and all of them are false by default and when any client change the state of checkbox it will emit to server and server will emit to all clients that checkbox state is changed and all clients will update the state of that checkbox.
@@ -19,15 +20,28 @@ async function main() {
 
     const io = new Server(server);
 
+    subscriber.subscribe('internal-server:checkbox:change')
+    subscriber.on('message', (channel, message) => {
+        if(channel === 'internal-server:checkbox:change') {
+            const {index, checked} = JSON.parse(message);
+            state.checboxes[index] = checked; 
+            io.emit('server:checkbox:change', { index, checked });
+        }
+    });
+
     io.on('connection', (socket) => {
         console.log('socket connected', {
             id: socket.id
         });
 
-        socket.on('client:checkbox:change', (data) => {
+        socket.on('client:checkbox:change', async (data) => {
             console.log(`[socket: ${socket.id}]: client:checkbox:change`, data);
-            io.emit('server:checkbox:change', data);  // this line means whatever client gave data emit to server that data 
-            state.checboxes[data.index] = data.checked; // this line means whatever client gave data emit to server that data and update the state of that checkbox
+            // io.emit('server:checkbox:change', data);  // this line means whatever client gave data emit to server that data 
+            // state.checboxes[data.index] = data.checked; // this line means whatever client gave data emit to server that data and update the state of that checkbox
+          await publisher.publish(
+                'internal-server:checkbox:change',
+                 JSON.stringify(data));  // why here strinfy because we are sending data to redis and redis only accept string data so we need to stringify the data before sending it to redis
+                
         })
     });
 
