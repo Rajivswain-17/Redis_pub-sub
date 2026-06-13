@@ -170,6 +170,87 @@
             100% { transform: scale(1); }
         }
 
+        /* ── Error Toast ── */
+        #error-toast-container {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            pointer-events: none;
+        }
+
+        .error-toast {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 300px;
+            max-width: 420px;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            background: rgba(220, 38, 38, 0.12);
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.45),
+                0 0 20px rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            font-size: 0.9rem;
+            font-weight: 500;
+            animation: toastSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .error-toast.hiding {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+
+        .error-toast-icon {
+            flex-shrink: 0;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+        }
+
+        .error-toast-message {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .error-toast-close {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: rgba(252, 165, 165, 0.6);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.2rem;
+            line-height: 1;
+            transition: color 0.2s ease;
+        }
+
+        .error-toast-close:hover {
+            color: #fca5a5;
+        }
+
+        @keyframes toastSlideIn {
+            0%   { opacity: 0; transform: translateX(100%); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+
         /* ── Responsive ── */
         @media (max-width: 480px) {
             #container {
@@ -181,19 +262,53 @@
                 width: 28px;
                 height: 28px;
             }
+            #error-toast-container {
+                top: 1rem;
+                right: 1rem;
+                left: 1rem;
+            }
+            .error-toast {
+                min-width: unset;
+                max-width: unset;
+            }
         }
     </style>
 </head>
 <body>
     <h1>checkboxes</h1>
+    <div id="error-toast-container"></div>
     <div id = "container"></div>
     <script src="/socket.io/socket.io.js"></script>
     <script>
 
         const socket = io();
        const container = document.getElementById('container');
-       const  CHECKBOX_COUNT = 200
+       const  CHECKBOX_COUNT = 100
+       
+       socket.on('server:error', (data) => {
+        const errorMessage = data.error;
+        showErrorToast(errorMessage);
+       });
 
+       function showErrorToast(message) {
+            const toastContainer = document.getElementById('error-toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'error-toast';
+            toast.innerHTML = `
+                <span class="error-toast-icon">!</span>
+                <span class="error-toast-message">${message}</span>
+                <button class="error-toast-close" aria-label="Dismiss">&times;</button>
+            `;
+            toastContainer.appendChild(toast);
+
+            const closeBtn = toast.querySelector('.error-toast-close');
+            const dismiss = () => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            };
+            closeBtn.addEventListener('click', dismiss);
+            setTimeout(dismiss, 4000);
+       }
 
        // here i handle server side event 
        socket.on('server:checkbox:change', (data) => {
@@ -209,8 +324,11 @@
         }
        })
 
-       window.addEventListener('load', async () => {
-        const response = await fetch('/checkboxes', {method: 'GET'});
+       async function fetchStateFromServer () {
+        while(container.firstChild) {
+            container.removeChild(container.firstChild);
+        }
+         const response = await fetch('/checkboxes', {method: 'GET'});
         const data = await response.json();
         if(data && data.checkboxes) {
             data.checkboxes.forEach((servervalue, index) => {
@@ -223,11 +341,16 @@
                     const checked = event.target.checked;
                     console.log('checkbox changed', {index, checked});
                     socket.emit('client:checkbox:change', {index, checked});
+                    fetchStateFromServer();
                 });
 
                 container.appendChild(input);
             });
         }
+       }
+       window.addEventListener('load', async () => {
+        fetchStateFromServer();
+        
        })
 
         
